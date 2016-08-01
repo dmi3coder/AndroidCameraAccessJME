@@ -1,13 +1,23 @@
 package com.example.jan.cameraaccessjme;
 
+import android.graphics.drawable.shapes.Shape;
 import android.util.Log;
 
+import com.jme3.animation.AnimChannel;
+import com.jme3.animation.AnimControl;
+import com.jme3.animation.AnimEventListener;
+import com.jme3.animation.LoopMode;
 import com.jme3.app.SimpleApplication;
 
+import com.jme3.light.DirectionalLight;
 import com.jme3.material.Material;
+import com.jme3.math.ColorRGBA;
+import com.jme3.math.Vector3f;
 import com.jme3.renderer.Camera;
 import com.jme3.renderer.ViewPort;
 import com.jme3.scene.Geometry;
+import com.jme3.scene.Spatial;
+import com.jme3.scene.shape.Box;
 import com.jme3.scene.shape.Quad;
 import com.jme3.texture.Image;
 import com.jme3.texture.Texture2D;
@@ -15,7 +25,7 @@ import com.jme3.texture.Texture2D;
 /**
  * Created by Jan on 30/12/2015.
  */
-public class CameraAccessJME extends SimpleApplication{
+public class CameraAccessJME extends SimpleApplication implements AnimEventListener {
     private static final String TAG = "CameraAccessJME";
     // The geometry which will represent the video background
     private Geometry mVideoBGGeom;
@@ -29,6 +39,12 @@ public class CameraAccessJME extends SimpleApplication{
     private boolean mSceneInitialized = false;
     // A flag indicating if a new Android camera image is available.
     boolean	mNewCameraFrameAvailable = false;
+    private float mForegroundCamFOVY = 30;
+
+    private AnimControl mAniControl;
+
+    private AnimChannel mAniChannel;
+
 
     public static void main(String[] args) {
         CameraAccessJME app = new CameraAccessJME();
@@ -44,6 +60,65 @@ public class CameraAccessJME extends SimpleApplication{
         // We use custom viewports - so the main viewport does not need to contain the rootNode
         viewPort.detachScene(rootNode);
         initVideoBackground(settings.getWidth(), settings.getHeight());
+        initForegroundScene();
+        initBackgroundCamera();
+        initForegroundCamera(mForegroundCamFOVY);
+
+    }
+
+    private void initForegroundScene() {
+        Spatial ninja = assetManager.loadModel("Models/Ninja/Ninja.mesh.xml");
+        ninja.scale(0.025f, 0.025f, 0.025f);
+
+        ninja.rotate(0.0f, -3.0f, 0.0f);
+
+        ninja.setLocalTranslation(0.0f, -2.5f, 0.0f);
+
+        rootNode.attachChild(ninja);
+
+        DirectionalLight sun = new DirectionalLight();
+
+        sun.setDirection(new Vector3f(-0.1f, -0.7f, -1.0f));
+
+        rootNode.addLight(sun);
+
+        mAniControl = ninja.getControl(AnimControl.class);
+
+        mAniControl.addListener(this);
+
+        mAniChannel = mAniControl.createChannel();
+
+        mAniChannel.setAnim("Walk");
+
+        mAniChannel.setLoopMode(LoopMode.Loop);
+
+        mAniChannel.setSpeed(1f);
+    }
+
+    private void initBackgroundCamera() {
+
+    }
+
+    private void initForegroundCamera(float mForegroundCamFOVY) {
+        Camera fgCam = new Camera(settings.getWidth(),
+                settings.getHeight());
+
+        fgCam.setLocation(new Vector3f(0f, 0f, 10f));
+
+        fgCam.setAxes(new Vector3f(-1f,0f,0f),
+                new Vector3f(0f,1f,0f), new Vector3f(0f,0f,-1f));
+
+        fgCam.setFrustumPerspective(mForegroundCamFOVY,
+                settings.getWidth()/settings.getHeight(), 1, 1000);
+
+        ViewPort fgVP = renderManager.createMainView("ForegroundView",
+                fgCam);
+
+        fgVP.attachScene(rootNode);
+
+        fgVP.setBackgroundColor(ColorRGBA.Blue);
+
+        fgVP.setClearFlags(false, true, false);
     }
 
     // This function creates the geometry, the viewport and the virtual camera
@@ -74,6 +149,15 @@ public class CameraAccessJME extends SimpleApplication{
         // Attach the geometry representing the video background to the viewport.
         videoBGVP.attachScene(mVideoBGGeom);
         mSceneInitialized = true;
+
+        Box a = new Box(1, 1, 1);
+        Geometry geom;
+        geom = new Geometry("Box", a);
+        geom.updateModelBound();
+
+        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.setColor("Color", ColorRGBA.Blue);
+        geom.setMaterial(mat);
     }
 
     // This method retrieves the preview images from the Android world and puts them into a JME image.
@@ -99,4 +183,13 @@ public class CameraAccessJME extends SimpleApplication{
         mVideoBGGeom.updateGeometricState();
     }
 
+    @Override
+    public void onAnimCycleDone(AnimControl animControl, AnimChannel animChannel, String s) {
+
+    }
+
+    @Override
+    public void onAnimChange(AnimControl animControl, AnimChannel animChannel, String s) {
+
+    }
 }
