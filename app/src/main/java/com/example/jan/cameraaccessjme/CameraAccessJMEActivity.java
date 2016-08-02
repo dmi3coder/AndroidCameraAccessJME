@@ -12,12 +12,17 @@ import java.util.List;
 
 import android.graphics.ImageFormat;
 import android.graphics.PixelFormat;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.ViewGroup;
+import android.widget.Toast;
 
+import com.jme3.app.SimpleApplication;
 import com.jme3.system.android.AndroidConfigChooser.ConfigType;
 import com.jme3.texture.Image;
 
@@ -32,6 +37,31 @@ public class CameraAccessJMEActivity extends AndroidHarness {
     private CameraPreview mPreview;
     private int mDesiredCameraPreviewWidth = 640;
     private final int MY_PERMISSION_REQUEST_USE_CAMERA = 200;
+    private LocationManager locationManager;
+    private LocationListener locationListener = new LocationListener() {
+        @Override
+        public void onLocationChanged(Location location) {
+            Toast.makeText(CameraAccessJMEActivity.this, "Location changed", Toast.LENGTH_SHORT).show();
+            if (app != null) {
+                ((CameraAccessJME) app).setUserLocation(location);
+            }
+        }
+
+        @Override
+        public void onStatusChanged(String provider, int status, Bundle extras) {
+
+        }
+
+        @Override
+        public void onProviderEnabled(String provider) {
+
+        }
+
+        @Override
+        public void onProviderDisabled(String provider) {
+
+        }
+    };
 
     private byte[] mPreviewBufferRGB565 = null;
     java.nio.ByteBuffer mPreviewByteBufferRGB565;
@@ -167,20 +197,33 @@ public class CameraAccessJMEActivity extends AndroidHarness {
         stopPreview = false;
         // Create an instance of Camera
         mCamera = getCameraInstance();
-        if (ContextCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, MY_PERMISSION_REQUEST_USE_CAMERA);
+        if (ContextCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA,Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION}, MY_PERMISSION_REQUEST_USE_CAMERA);
         } else {
             // initialize camera parameters
+            locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500, 0, locationListener);
             initializeCameraParameters();
         }
+
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        switch(requestCode){
-            case MY_PERMISSION_REQUEST_USE_CAMERA:{
-                if(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
+        switch (requestCode) {
+            case MY_PERMISSION_REQUEST_USE_CAMERA: {
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED
+                        &&grantResults[1] == PackageManager.PERMISSION_GRANTED
+                        &&grantResults[2] == PackageManager.PERMISSION_GRANTED) {
                     initializeCameraParameters();
+                    if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                        return;
+                    }
+                    locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500, 0, locationListener);
+                    Toast.makeText(CameraAccessJMEActivity.this, "permissions granted :*", Toast.LENGTH_SHORT).show();
                 }
             }
         }

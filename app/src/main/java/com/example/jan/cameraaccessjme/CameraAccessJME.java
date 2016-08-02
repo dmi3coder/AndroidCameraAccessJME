@@ -1,6 +1,7 @@
 package com.example.jan.cameraaccessjme;
 
 import android.graphics.drawable.shapes.Shape;
+import android.location.Location;
 import android.util.Log;
 
 import com.jme3.animation.AnimChannel;
@@ -22,6 +23,8 @@ import com.jme3.scene.shape.Quad;
 import com.jme3.texture.Image;
 import com.jme3.texture.Texture2D;
 
+import java.util.Vector;
+
 /**
  * Created by Jan on 30/12/2015.
  */
@@ -39,7 +42,13 @@ public class CameraAccessJME extends SimpleApplication implements AnimEventListe
     private boolean mSceneInitialized = false;
     // A flag indicating if a new Android camera image is available.
     boolean	mNewCameraFrameAvailable = false;
+    private boolean mNewUserPositionAvailable = false;
+    private Vector3f mUserPosition;
     private float mForegroundCamFOVY = 30;
+    Spatial ninja;
+    private Vector3f mNinjaPosition;
+    Location locationNinja;
+    private boolean firstTimeLocation = true;
 
     private AnimControl mAniControl;
 
@@ -67,7 +76,7 @@ public class CameraAccessJME extends SimpleApplication implements AnimEventListe
     }
 
     private void initForegroundScene() {
-        Spatial ninja = assetManager.loadModel("Models/Ninja/Ninja.mesh.xml");
+        ninja = assetManager.loadModel("Models/Ninja/Ninja.mesh.xml");
         ninja.scale(0.025f, 0.025f, 0.025f);
 
         ninja.rotate(0.0f, -3.0f, 0.0f);
@@ -178,9 +187,36 @@ public class CameraAccessJME extends SimpleApplication implements AnimEventListe
             mvideoBGMat.setTexture("ColorMap", mCameraTexture);
             mNewCameraFrameAvailable = false;
         }
+        if (mNewUserPositionAvailable) {
+            Log.d(TAG,"update user location");
+            ninja.setLocalTranslation(/*mNinjaPosition.x+0.0f*/ 0 ,mNinjaPosition.y-2.5f,mNinjaPosition.z+0.0f);
+            mNewUserPositionAvailable=false;
+        }
         // we have to update the video background node before the root node gets updated by the super class
         mVideoBGGeom.updateLogicalState(tpf);
         mVideoBGGeom.updateGeometricState();
+    }
+
+    public void setUserLocation(Location location){
+        if(!mSceneInitialized)
+            return;
+        WSG84toECEF(location,mUserPosition);
+        mNewUserPositionAvailable = true;
+
+        if (firstTimeLocation) {
+            //put it at 10 meters
+            locationNinja.setLatitude(location.getLatitude()+0.0003);
+            locationNinja.setLongitude(location.getLongitude());
+            firstTimeLocation=false;
+        }
+        Vector3f ECEFNinja=new Vector3f();
+
+        Vector3f ENUNinja=new Vector3f();
+
+        WSG84toECEF(locationNinja,ECEFNinja);
+
+        ECEFtoENU(location,mUserPosition,ECEFNinja,ENUNinja);
+        mNinjaPosition.set(ENUNinja.x,0,ENUNinja.y);
     }
 
     @Override
@@ -191,5 +227,51 @@ public class CameraAccessJME extends SimpleApplication implements AnimEventListe
     @Override
     public void onAnimChange(AnimControl animControl, AnimChannel animChannel, String s) {
 
+    }
+    private void WSG84toECEF(Location loc, Vector3f position) {
+
+        double WGS84_A=6378137.0;           // WGS 84 semi-major axis constant in meters
+
+        double WGS84_E=0.081819190842622;   // WGS 84 eccentricity
+
+        double lat=(float) Math.toRadians(loc.getLatitude());
+        double lon=(float) Math.toRadians(loc.getLongitude());
+
+        double clat=Math.cos(lat);
+        double slat=Math.sin(lat);
+        double clon=Math.cos(lon);
+        double slon=Math.sin(lon);
+
+        double N=WGS84_A / Math.sqrt(1.0 - WGS84_E * WGS84_E * slat * slat);
+
+        double x = N*clat*clon;
+        double y = N*clat*slon;
+        double z = (N * (1.0 - WGS84_E * WGS84_E)) * slat;
+
+        position.set((float)x,(float)y,(float)z);
+    }
+
+    private void ECEFtoENU(Location loc, Vector3f cameraPosition, Vector3f poiPosition, Vector3f enuPOIPosition) {
+        double lat=(float) Math.toRadians(loc.getLatitude());
+        double lon=(float) Math.toRadians(loc.getLongitude());
+
+        double clat=Math.cos(lat);
+        double slat=Math.sin(lat);
+        double clon=Math.cos(lon);
+        double slon=Math.sin(lon);
+
+        double dx = cameraPosition.x - poiPosition.x;
+
+        double dy = cameraPosition.y - poiPosition.y;
+
+        double dz = cameraPosition.z - poiPosition.z;
+
+        double e = -slon*dx  + clon*dy;
+
+        double n = -slat*clon*dx - slat*slon*dy + clat*dz;
+
+        double u = clat*clon*dx + clat*slon*dy + slat*dz;
+
+        enuPOIPosition.set((float)e,(float)n,(float)u);
     }
 }
